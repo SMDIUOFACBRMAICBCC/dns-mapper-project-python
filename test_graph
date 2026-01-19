@@ -1,0 +1,15 @@
+// DNS environment map for example.com
+digraph "DNS Map" {
+	bgcolor="#1a1a2e" fontcolor=white fontname=Arial fontsize=20 label="DNS Map: example.com" labelloc=t nodesep=0.5 pad=0.5 rankdir=LR ranksep=1.0
+	node [fontcolor=white fontname=Arial fontsize=10 shape=box style="rounded,filled"]
+	edge [fontcolor="#cccccc" fontname=Arial fontsize=8]
+	"example.com" [label="example.com" fillcolor="#FF6B6B" shape=box]
+	"104.18.27.120" [label="104.18.27.120" fillcolor="#50C878" shape=ellipse]
+	"104.18.26.120" [label="104.18.26.120" fillcolor="#50C878" shape=ellipse]
+	"2606:4700::6812:1a78" [label="2606:4700::6812:1a78" fillcolor="#50C878" shape=ellipse]
+	"2606:4700::6812:1b78" [label="2606:4700::6812:1b78" fillcolor="#50C878" shape=ellipse]
+	"example.com" -> "104.18.27.120" [label=A color="#2ECC71" fontcolor="#2ECC71"]
+	"example.com" -> "104.18.26.120" [label=A color="#2ECC71" fontcolor="#2ECC71"]
+	"example.com" -> 2606:4700::6812:1a78 [label=AAAA color="#27AE60" fontcolor="#27AE60"]
+	"example.com" -> 2606:4700::6812:1b78 [label=AAAA color="#27AE60" fontcolor="#27AE60"]
+}
