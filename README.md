@@ -1,70 +1,41 @@
 # DNS Mapper
 
-DNS environment mapping tool that discovers all IP addresses and domain names associated with a given domain using only DNS queries.
+Outil pour scanner l'infrastructure DNS d'un domaine.
 
 ## Installation
 
-```bash
-pip install -r requirements.txt
+```
+pip install dnspython
 ```
 
-You also need Graphviz installed on your system:
-- Windows: `choco install graphviz` or download from https://graphviz.org/download/
-- Linux: `sudo apt install graphviz`
-- macOS: `brew install graphviz`
+Il faut aussi Graphviz pour les images:
+https://graphviz.org/download/
 
-## Usage
-
-```bash
-# Basic usage
-python -m dns_mapper example.com
-
-# With options
-python -m dns_mapper example.com -d 2 -f png -o graph.png
-
-# Text output only
-python -m dns_mapper example.com -f text
-
-# Generate SVG graph
-python -m dns_mapper example.com -f svg -o graph.svg
-```
-
-## Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `-d, --depth` | Recursion depth | 2 |
-| `-o, --output` | Output file | stdout/graph.png |
-| `-f, --format` | Output format: text, dot, png, svg | text |
-| `-s, --strategies` | Strategies to use (comma-separated) | all |
-
-## Strategies
-
-1. **parse_txt** - Parse TXT records for IPs and domains
-2. **crawl_tld** - Discover parent domains up to TLD
-3. **scan_srv** - Scan SRV records for services
-4. **reverse_dns** - Reverse DNS lookup (PTR records)
-5. **ip_neighbors** - Scan neighboring IP addresses
-6. **subdomain** - Enumerate common subdomains
-
-## Example Output
+## Utilisation
 
 ```
-$ python -m dns_mapper se.com -d 1 -f text
-
-=== DNS Mapper Report for se.com ===
-
-Domains discovered:
-  - se.com (A: 34.227.236.7)
-  - www.se.com (CNAME: se.com)
-  - mail.se.com (A: 185.132.182.5)
-  ...
-
-IP addresses discovered:
-  - 34.227.236.7 (PTR: ec2-34-227-236-7.compute-1.amazonaws.com)
-  ...
+python dns_fast.py <domaine> <profondeur> <sortie>
 ```
 
-## Author
+Sorties possibles:
+- `--results` - fichier Results.txt
+- `--graph` - image graph.png
+- `--dot` - fichier graph.dot
+- `--all` - tout
 
-Created for Python B1 course at OTERIA 2025-2026
+## Exemples
+
+```
+python dns_fast.py example.com 5 --graph
+python dns_fast.py example.com 5 --all
+python dns_fast.py example.com 3 --results
+```
+
+## Fichiers
+
+- `dns_fast.py` - programme principal
+- `dns_query.py` - requetes dns
+- `dns_scanner.py` - scan recursif
+- `dns_config.py` - config
+- `graph_style.py` - generation graphe
+- `results_generator.py` - generation results.txt
