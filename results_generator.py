@@ -4,97 +4,72 @@ from dns_query import query
 
 
 def get_info(d):
-    # recup info dns
-    info = {}
-    info['domain'] = d
-    info['ips'] = query(d, 'A')
-    info['mx'] = query(d, 'MX')
-    info['ns'] = query(d, 'NS')
-    return info
+    # recup info basique
+    return {
+        'domain': d,
+        'ips': query(d, 'A'),
+        'mx': query(d, 'MX'),
+        'ns': query(d, 'NS')
+    }
 
 
 def generate_results(target, domains, edges):
-    # genere le fichier results
-    lines = []
+    # genere le contenu du fichier
+    out = []
     
-    # header
-    lines.append("# DNS MAP: " + target)
-    lines.append("# Domains: " + str(len(domains)))
-    lines.append("# Edges: " + str(len(edges)))
-    lines.append("")
+    out.append("# DNS MAP: " + target)
+    out.append("# Domains: " + str(len(domains)))
+    out.append("# Edges: " + str(len(edges)))
+    out.append("")
     
-    # calcul stats
+    # stats
     stats = {}
     for e in edges:
         r = e[2]
-        if r in stats:
-            stats[r] = stats[r] + 1
-        else:
-            stats[r] = 1
+        stats[r] = stats.get(r, 0) + 1
     
-    lines.append("# STATS")
+    out.append("# STATS")
+    for r, c in sorted(stats.items(), key=lambda x: -x[1]):
+        out.append("  " + r + ": " + str(c))
+    out.append("")
     
-    # trie par count
-    stats_list = []
-    for r in stats:
-        stats_list.append((r, stats[r]))
-    stats_list.sort(key=lambda x: x[1], reverse=True)
-    
-    for item in stats_list:
-        lines.append("  " + item[0] + ": " + str(item[1]))
-    lines.append("")
-    
-    # recup infos
+    # recup infos dns
     print("Collecting domain info...")
-    sorted_domains = sorted(domains)
-    infos = {}
-    
-    # limite a 100
-    domains_to_check = sorted_domains[:100]
+    sorted_doms = sorted(domains)[:100]
     
     pool = ThreadPoolExecutor(max_workers=20)
-    futures = {}
-    for d in domains_to_check:
-        f = pool.submit(get_info, d)
-        futures[f] = d
+    futures = {pool.submit(get_info, d): d for d in sorted_doms}
     
+    infos = {}
     for f in as_completed(futures):
         try:
             i = f.result()
             infos[i['domain']] = i
         except:
             pass
-    
     pool.shutdown()
     
-    lines.append("# DOMAINS")
-    lines.append("")
+    # liste domaines
+    out.append("# DOMAINS")
+    out.append("")
     
-    for d in sorted_domains:
-        lines.append("[" + d + "]")
+    for d in sorted(domains):
+        out.append("[" + d + "]")
         
         if d in infos:
             i = infos[d]
-            if len(i['ips']) > 0:
-                lines.append("  A: " + ', '.join(i['ips']))
-            if len(i['mx']) > 0:
-                lines.append("  MX: " + ', '.join(i['mx']))
-            if len(i['ns']) > 0:
-                lines.append("  NS: " + ', '.join(i['ns']))
+            if i['ips']:
+                out.append("  A: " + ', '.join(i['ips']))
+            if i['mx']:
+                out.append("  MX: " + ', '.join(i['mx']))
+            if i['ns']:
+                out.append("  NS: " + ', '.join(i['ns']))
         
-        # edges sortantes
-        out = []
-        for e in edges:
-            if e[0] == d:
-                out.append((e[1], e[2]))
-        out = out[:5]
+        # liens
+        liens = [(e[1], e[2]) for e in edges if e[0] == d][:5]
+        if liens:
+            out.append("  -> " + ', '.join([l[0] + '(' + l[1] + ')' for l in liens]))
         
-        if len(out) > 0:
-            parts = []
-            for item in out:
-                parts.append(item[0] + '(' + item[1] + ')')
-            lines.append("  ->: " + ', '.join(parts))
-        
-        lines.append("")
+        out.append("")
     
-    return "\n".join(lines)
+    return "\n".join(out)

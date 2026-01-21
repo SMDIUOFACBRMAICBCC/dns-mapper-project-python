@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-# dns mapper
+# dns mapper - scan un domaine et fait un graphe
 import sys
-import os
 import subprocess
 import shutil
 from dns_scanner import scan
 from results_generator import generate_results
 from graph_style import make_dot
 
-# cherche dot dans le PATH
+# on cherche graphviz
 GRAPHVIZ = shutil.which('dot')
 
 
 if __name__ == '__main__':
     # aide
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 2 or sys.argv[1] == '-h' or sys.argv[1] == '--help':
         print("DNS Mapper")
         print("")
         print("Usage: python dns_fast.py <domain> <depth> <output>")
@@ -24,19 +23,8 @@ if __name__ == '__main__':
         print("Ex: python dns_fast.py example.com 5 --graph")
         sys.exit(0)
     
-    if sys.argv[1] == '-h' or sys.argv[1] == '--help':
-        print("DNS Mapper")
-        print("")
-        print("Usage: python dns_fast.py <domain> <depth> <output>")
-        print("")
-        print("Output: --results --graph --dot --all")
-        print("")
-        print("Ex: python dns_fast.py example.com 5 --graph")
-        sys.exit(0)
-    
-    # parse args
-    target = sys.argv[1].lower()
-    target = target.rstrip('.')
+    # recupere le domaine
+    target = sys.argv[1].lower().rstrip('.')
     
     # trouve depth
     depth = None
@@ -45,35 +33,26 @@ if __name__ == '__main__':
             depth = int(arg)
             break
     
-    # options
-    args = sys.argv[2:]
-    results = False
-    graph = False
-    dot = False
-    
-    if '--results' in args or '--all' in args:
-        results = True
-    if '--graph' in args or '--all' in args:
-        graph = True
-    if '--dot' in args or '--all' in args:
-        dot = True
-    
-    # verif depth
     if depth is None:
         print("Erreur: profondeur requise")
         sys.exit(1)
     
-    # max 7
+    # max 7 niveaux
     if depth > 7:
         print("Note: max 7 (demandé " + str(depth) + ")")
         depth = 7
     
-    # verif output
+    # options de sortie
+    args = sys.argv[2:]
+    results = '--results' in args or '--all' in args
+    graph = '--graph' in args or '--all' in args
+    dot = '--dot' in args or '--all' in args
+    
     if not results and not graph and not dot:
         print("Erreur: output requis (--results/--graph/--dot/--all)")
         sys.exit(1)
     
-    # lance scan
+    # lance le scan
     print("")
     print("=== DNS Mapper: " + target + " (depth=" + str(depth) + ") ===")
     print("")
@@ -86,7 +65,7 @@ if __name__ == '__main__':
     print("=== " + str(len(domains)) + " domaines trouvé ===")
     print("")
     
-    # results.txt
+    # sauvegarde results.txt
     if results:
         content = generate_results(target, domains, edges)
         f = open('Results.txt', 'w', encoding='utf-8')
@@ -94,7 +73,7 @@ if __name__ == '__main__':
         f.close()
         print("Saved: Results.txt")
     
-    # graph.dot
+    # sauvegarde graph.dot
     if dot or graph:
         content = make_dot(target, domains, edges)
         f = open('graph.dot', 'w', encoding='utf-8')
@@ -103,16 +82,25 @@ if __name__ == '__main__':
         if dot:
             print("Saved: graph.dot")
     
-    # graph.png
+    # genere graph.png et graph.svg
     if graph:
         if GRAPHVIZ:
-            if len(domains) > 200:
-                dpi = 200
+            # dpi selon nb de domaines
+            if len(domains) > 500:
+                dpi = 300
+            elif len(domains) > 200:
+                dpi = 250
             else:
-                dpi = 150
+                dpi = 200
             
+            # png
             cmd = [GRAPHVIZ, '-Tpng', '-Gdpi=' + str(dpi), 'graph.dot', '-o', 'graph.png']
             subprocess.run(cmd, capture_output=True)
             print("Saved: graph.png")
+            
+            # svg pour zoom
+            cmd = [GRAPHVIZ, '-Tsvg', 'graph.dot', '-o', 'graph.svg']
+            subprocess.run(cmd, capture_output=True)
+            print("Saved: graph.svg")
         else:
-            print("Graphviz pas trouvé. Installe depuis: https://graphviz.org/download/")
+            print("Graphviz pas trouvé. Installe: https://graphviz.org/download/")

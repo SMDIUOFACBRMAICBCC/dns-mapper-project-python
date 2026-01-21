@@ -1,31 +1,22 @@
-# genere le graphe dot
+# graphe dns - genere le fichier dot
+# fait le 21/01
 
-# couleurs par niveau
-COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', 
-          '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280']
+COULEURS = [
+    '#dc2626', '#ea580c', '#d97706', '#65a30d',
+    '#16a34a', '#0891b2', '#2563eb', '#7c3aed'
+]
 
-# couleurs des fleches
-EDGE_COLORS = {
-    'MX': '#f87171',
-    'NS': '#60a5fa',
-    'SOA': '#a78bfa',
-    'CNAME': '#2dd4bf',
-    'SPF': '#fb923c',
-    'SRV': '#f472b6',
-    'SUB': '#4ade80',
-    'PARENT': '#6b7280',
-    'PTR': '#fbbf24',
-    'TXT': '#a3e635',
-    'NEIGHBOR': '#94a3b8'
+COULEURS_FLECHES = {
+    'MX': '#f87171', 'NS': '#60a5fa', 'SOA': '#a78bfa',
+    'CNAME': '#2dd4bf', 'SPF': '#fb923c', 'SRV': '#f472b6',
+    'SUB': '#4ade80', 'PARENT': '#a1a1aa', 'PTR': '#fbbf24',
+    'TXT': '#a3e635', 'NEIGHBOR': '#94a3b8'
 }
 
 
-def valid(d):
-    if not d:
-        return False
-    if len(d) >= 254:
-        return False
-    if '.' not in d:
+def valide(d):
+    # check si domaine est ok
+    if not d or len(d) >= 254 or '.' not in d:
         return False
     for c in '%{}" \n\r\t':
         if c in d:
@@ -33,159 +24,148 @@ def valid(d):
     return True
 
 
-def escape(s):
-    s = s.replace('\\', '')
-    s = s.replace('"', '')
-    s = s.replace('\n', '')
-    return s
+def echap(s):
+    # escape les guillemets
+    return s.replace('"', '\\"').replace('\\', '\\\\')
 
 
-def make_dot(target, domains, edges, max_edges=400):
-    # genere le code dot
+def make_dot(target, domains, edges):
+    # genere le contenu dot pour graphviz
     
-    # filtre domaines valides
-    valid_domains = set()
+    # filtre domaines valide
+    ok = set()
     for d in domains:
-        if valid(d):
-            valid_domains.add(d)
+        if valide(d):
+            ok.add(d)
     
-    n = len(valid_domains)
-    
-    # params selon taille
-    if n > 300:
-        sep = 0.8
-        nsep = 0.05
-        fs = 7
-        h = 0.18
-        m = '0.04,0.02'
-        mpl = 50
-    elif n > 150:
-        sep = 1.0
-        nsep = 0.08
-        fs = 8
-        h = 0.22
-        m = '0.06,0.03'
-        mpl = 80
-    elif n > 80:
-        sep = 1.2
-        nsep = 0.12
-        fs = 9
-        h = 0.26
-        m = '0.08,0.04'
-        mpl = 120
-    else:
-        sep = 1.5
-        nsep = 0.20
-        fs = 10
-        h = 0.32
-        m = '0.10,0.05'
-        mpl = 200
-    
-    # bfs pour calculer les layers
-    layers = {}
-    layers[target] = 0
-    queue = [target]
-    
-    # construit la map des edges
-    edge_map = {}
+    # map des edges
+    enfants = {}
+    parents = {}
     for e in edges:
         s = e[0]
         t = e[1]
-        if s not in edge_map:
-            edge_map[s] = []
-        edge_map[s].append(t)
+        if s not in enfants:
+            enfants[s] = []
+        enfants[s].append(t)
+        if t not in parents:
+            parents[t] = []
+        parents[t].append(s)
     
-    # bfs
-    while len(queue) > 0:
+    # bfs pour trouver les layers
+    layers = {target: 0}
+    queue = [target]
+    while queue:
         cur = queue.pop(0)
-        if cur in edge_map:
-            for t in edge_map[cur]:
-                if t in valid_domains:
-                    if t not in layers:
-                        layers[t] = layers[cur] + 1
-                        queue.append(t)
+        if cur in enfants:
+            for t in enfants[cur]:
+                if t in ok and t not in layers:
+                    layers[t] = layers[cur] + 1
+                    queue.append(t)
     
     # groupe par layer
-    layer_groups = {}
+    groupes = {}
     for d in layers:
         l = layers[d]
-        if l not in layer_groups:
-            layer_groups[l] = []
-        layer_groups[l].append(d)
+        if l not in groupes:
+            groupes[l] = []
+        groupes[l].append(d)
     
-    # construit le dot
-    lines = []
-    lines.append('digraph G {')
-    lines.append('')
-    lines.append('  bgcolor="#16162a"')
-    lines.append('  rankdir=LR')
-    lines.append('  ranksep=' + str(sep))
-    lines.append('  nodesep=' + str(nsep))
-    lines.append('  splines=polyline')
-    lines.append('  overlap=false')
-    lines.append('')
-    lines.append('  node [shape=box style="filled,rounded" fontname="Consolas" fontsize=' + str(fs))
-    lines.append('        fontcolor="white" height=' + str(h) + ' margin="' + m + '"]')
-    lines.append('')
-    lines.append('  edge [penwidth=0.5 arrowsize=0.3]')
-    lines.append('')
+    # selection greedy - on prend les plus connecte
+    visible = set()
+    visible.add(target)
     
-    # ajoute les nodes par layer
-    shown = set()
-    layer_nums = sorted(layer_groups.keys())
+    limites = {0: 1, 1: 40, 2: 35, 3: 30, 4: 25, 5: 20, 6: 15, 7: 12}
     
-    for l in layer_nums:
-        if l > 7:
+    for l in range(1, 8):
+        if l not in groupes:
             continue
         
-        doms = layer_groups[l]
-        doms = sorted(doms)
-        doms = doms[:mpl]
+        candidats = groupes[l]
+        limite = limites.get(l, 10)
         
-        if l < len(COLORS):
-            c = COLORS[l]
-        else:
-            c = COLORS[-1]
+        # score par nb de parents visible
+        scores = []
+        for d in candidats:
+            ps = parents.get(d, [])
+            nb = 0
+            for p in ps:
+                if p in visible and layers.get(p, 999) < l:
+                    nb = nb + 1
+            if nb > 0:
+                scores.append((d, nb))
         
-        lines.append('  // layer ' + str(l))
-        lines.append('  { rank=same')
+        # trie par score desc
+        scores.sort(key=lambda x: -x[1])
         
-        for d in doms:
-            shown.add(d)
-            lines.append('    "' + escape(d) + '" [fillcolor="' + c + '"]')
-        
-        lines.append('  }')
-        lines.append('')
+        # prend les top
+        for item in scores[:limite]:
+            visible.add(item[0])
     
-    # ajoute les edges
-    lines.append('  // edges')
-    seen = set()
-    cnt = 0
+    # construit le dot
+    out = []
+    out.append('digraph DNS {')
+    out.append('  bgcolor="#0f172a"')
+    out.append('  rankdir=TB')
+    out.append('  ranksep=0.8')
+    out.append('  nodesep=0.25')
+    out.append('  splines=true')
+    out.append('')
+    out.append('  node [shape=box style="filled,rounded" fontname="Segoe UI" fontsize=9')
+    out.append('        fontcolor="white" penwidth=0 height=0.3 margin="0.1,0.05"]')
+    out.append('')
+    out.append('  edge [penwidth=1.0 arrowsize=0.4 color="#475569"]')
+    out.append('')
     
-    for e in edges:
-        if cnt >= max_edges:
+    # nodes par layer
+    for l in sorted(groupes.keys()):
+        if l > 7:
             break
         
+        nodes = []
+        for d in groupes[l]:
+            if d in visible:
+                nodes.append(d)
+        
+        if len(nodes) == 0:
+            continue
+        
+        couleur = COULEURS[l] if l < len(COULEURS) else COULEURS[-1]
+        
+        out.append('  // layer ' + str(l))
+        out.append('  { rank=same')
+        
+        for d in sorted(nodes):
+            if len(d) < 30:
+                label = d
+            else:
+                label = d[:27] + '...'
+            out.append('    "' + echap(d) + '" [label="' + echap(label) + '" fillcolor="' + couleur + '"]')
+        
+        out.append('  }')
+    
+    # edges - seulement vers l'avant
+    out.append('')
+    out.append('  // fleches')
+    deja = set()
+    
+    for e in edges:
         s = e[0]
         t = e[1]
-        r = e[2]
+        if len(e) > 2:
+            rtype = e[2]
+        else:
+            rtype = 'DEFAULT'
         
-        if s in shown and t in shown:
-            if (s, t) not in seen:
-                sl = layers.get(s, 99)
-                tl = layers.get(t, 99)
-                
-                if sl < tl and tl <= sl + 2:
-                    if r in EDGE_COLORS:
-                        color = EDGE_COLORS[r]
-                    else:
-                        color = '#6b7280'
-                    
-                    lines.append('  "' + escape(s) + '"->"' + escape(t) + '" [color="' + color + '"]')
-                    seen.add((s, t))
-                    cnt = cnt + 1
+        if s in visible and t in visible:
+            ls = layers.get(s, 999)
+            lt = layers.get(t, 999)
+            
+            if ls < lt:
+                cle = s + '->' + t
+                if cle not in deja:
+                    couleur = COULEURS_FLECHES.get(rtype, '#64748b')
+                    out.append('  "' + echap(s) + '" -> "' + echap(t) + '" [color="' + couleur + '"]')
+                    deja.add(cle)
     
-    lines.append('}')
-    
-    result = '\n'.join(lines)
-    return result
+    out.append('}')
+    return '\n'.join(out)

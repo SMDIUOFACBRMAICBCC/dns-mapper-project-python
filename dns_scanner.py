@@ -1,10 +1,10 @@
-# scan recursif
+# scan recursif des domaines
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dns_query import scan_one, valid
 
 
 def scan(target, depth):
-    # scan le domaine et les domaines lié
+    # scan le domaine cible et tout ce qu'on trouve
     domains = set()
     domains.add(target)
     edges = []
@@ -13,61 +13,52 @@ def scan(target, depth):
     queue.add(target)
     
     for lvl in range(depth):
-        # si queue vide on arrete
         if len(queue) == 0:
             break
         
-        # filtre les domaines pas encore visité
+        # domaines a scanner
         todo = []
         for d in queue:
-            if d not in visited:
-                if valid(d):
-                    todo.append(d)
+            if d not in visited and valid(d):
+                todo.append(d)
         
         if len(todo) == 0:
             break
         
-        # sous domaines seulement niveau 0 et 1
-        check_subs = False
-        if lvl < 2:
-            check_subs = True
+        # sous domaines niveau 0-1 seulement
+        check_subs = lvl < 2
         
-        # affiche progression
+        # progress
         msg = "[" + str(lvl+1) + "/" + str(depth) + "] " + str(len(todo)) + " domains"
         if check_subs:
             msg = msg + " +subs"
         print(msg + "...")
         
-        # lance les threads
+        # lance threads
         pool = ThreadPoolExecutor(max_workers=25)
         futures = {}
         for d in todo:
-            f = pool.submit(scan_one, d, check_subs)
-            futures[f] = d
+            futures[pool.submit(scan_one, d, check_subs)] = d
         
         next_queue = set()
         
-        # recup resultats
+        # resultats
         for f in as_completed(futures):
             d = futures[f]
             visited.add(d)
             try:
-                result = f.result()
-                doms = result[0]
-                edg = result[1]
+                doms, edg = f.result()
                 for dom in doms:
                     if valid(dom):
                         domains.add(dom)
-                for e in edg:
-                    edges.append(e)
-                for dom in doms:
-                    next_queue.add(dom)
+                        next_queue.add(dom)
+                edges.extend(edg)
             except:
                 pass
         
         pool.shutdown()
         
-        # update queue
+        # prochaine iteration
         queue = set()
         for d in next_queue:
             if d not in visited:
