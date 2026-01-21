@@ -13,7 +13,10 @@ EDGE_COLORS = {
     'SPF': '#fb923c',
     'SRV': '#f472b6',
     'SUB': '#4ade80',
-    'PARENT': '#6b7280'
+    'PARENT': '#6b7280',
+    'PTR': '#fbbf24',
+    'TXT': '#a3e635',
+    'NEIGHBOR': '#94a3b8'
 }
 
 
